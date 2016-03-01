@@ -1378,6 +1378,36 @@ static void aes_decrypt(const struct crypto_aes_ctx *ctx, unsigned char *out, co
 	dst[3] = b0[3];
 }
 
+
+Aes::Aes() {
+
+}
+
+Aes::~Aes() {
+
+}
+
+bool Aes::setKey(const unsigned char* key,int len) {
+
+}
+
+bool Aes::decrypt(const unsigned char* data,int len) {
+
+}
+
+bool Aes::encrypt(const unsigned char* data,int len) {
+
+}
+
+int Aes::copyResult(unsigned char* data,int *len) {
+
+
+}
+
+unsigned char* Aes::getResult(int* len) {
+
+}
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

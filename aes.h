@@ -30,5 +30,22 @@ class Aes {
 public:
 	Aes();
 	virtual ~Aes();
+
+	bool setKey(const unsigned char* key,int len);
+
+	bool decrypt(const unsigned char* data,int len);
+
+	bool encrypt(const unsigned char* data,int len);
+
+	int copyResult(unsigned char* data,int *len);
+
+	unsigned char* getResult(int* len);
+
+private:
+	struct crypto_aes_ctx _ctx;
+
+	unsigned char* _buffer;
+
+	int _length;
 };
 #endif
