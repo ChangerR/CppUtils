@@ -1,4 +1,9 @@
 #include "aes.h"
+#include <memory.h>
+
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
 
 #undef u32
 typedef unsigned int u32;
@@ -1380,34 +1385,115 @@ static void aes_decrypt(const struct crypto_aes_ctx *ctx, unsigned char *out, co
 
 
 Aes::Aes() {
-
+	memset(&_ctx,0,sizeof(struct crypto_aes_ctx));
+	_buffer = NULL;
+	_alloc = 0;
+	_pos = 0;
+	_isSetKey = false;
 }
 
 Aes::~Aes() {
+	
+	if(_buffer != NULL) {
+		delete[] _buffer;
+		_buffer = NULL;
+	}
 
 }
 
 bool Aes::setKey(const unsigned char* key,int len) {
 
+	_isSetKey = crypto_aes_set_key(&_ctx,key,len) == 0 ? true : false;
+	return _isSetKey;
 }
 
 bool Aes::decrypt(const unsigned char* data,int len) {
 
+	if(_isSetKey == false || len % 16 != 0)
+		return false;
+	
+	if(_alloc < len) {
+		if(_buffer != NULL)
+			delete[] _buffer;
+		_alloc = len;
+		_buffer = new unsigned char[_alloc];
+	}
+
+	unsigned char* p = _buffer;
+	_pos = 0;
+
+	while(len > 0) {
+		aes_decrypt(&_ctx,p,data);
+		p += 16;
+		data += 16;
+		_pos += 16;
+		len -= 16;
+	}
+	p--;
+
+	while(*p == 0) {
+		p--;
+		_pos--;
+	}
+	return true;
 }
 
 bool Aes::encrypt(const unsigned char* data,int len) {
 
+	if(_isSetKey == false) 
+		return false;
+
+	int allocSize = (len + 15) & (~ 0xf);
+
+	if( _alloc < allocSize) {
+		if(_buffer != NULL)
+			delete[] _buffer;
+		_alloc = allocSize;
+		_buffer = new unsigned char[_alloc];
+	}
+
+	_pos = 0;
+	unsigned char* p = _buffer;
+
+	while(len >= 16) {
+		aes_encrypt(&_ctx,p,data);
+		p += 16;
+		data += 16;
+		_pos += 16;
+		len -= 16;
+	}
+
+	if( len > 0) {
+		unsigned int d[4];
+		d[0] = 0;
+		d[1] = 0;
+		d[2] = 0;
+		d[3] = 0;
+		memcpy((unsigned char*)d,data,len);
+		aes_encrypt(&_ctx,p,(unsigned char*)d);
+		_pos += 16;
+		len = 0;
+	}
+
+	return true;
 }
 
 int Aes::copyResult(unsigned char* data,int *len) {
+	if(*len < _pos)
+		return 0;
 
+	memcpy(data,_buffer,_pos);
+	*len = _pos;
 
+	return _pos;
 }
 
 unsigned char* Aes::getResult(int* len) {
-
+	*len = _pos;
+	return _buffer;
 }
-
+ 
+/*
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1415,30 +1501,37 @@ unsigned char* Aes::getResult(int* len) {
 int main(int argc,char** argv) {
 	char in[256];
 	char out[256];
-	unsigned char key[128];
-	crypto_aes_ctx l_ctx;
-	
+	unsigned char key[16];
+	Aes aes;
+	int len = 256;
 	memset(in,0,256);
 	memset(out,0,256);
 	
 	srand(1271673894);
 	
-	for(int i = 0; i < 128; i++) {
+	for(int i = 0; i < 16; i++) {
 		key[i] = rand() % 256;
 	}
 	strcpy(in,"THIS IS A TEST STRING!!!");
 	
-	crypto_aes_set_key(&l_ctx,key,16);
-	
-	aes_encrypt(&l_ctx,(unsigned char*)out,(unsigned char*)in);
-	
-	printf("encode=%s\n",out);
+	aes.setKey(key,16);
+
+	aes.encrypt((unsigned char*)in,strlen((char*)in));
+
+	aes.copyResult((unsigned char*)out,&len);
+
+	printf("encode=%s  len=%d\n",out,len);
 	
 	memset(in,0,256);
 	
-	aes_decrypt(&l_ctx,(unsigned char*)in,(unsigned char*)out);
+	aes.decrypt((unsigned char*)out,len);
+
+	//aes_decrypt(&l_ctx,(unsigned char*)in,(unsigned char*)out);
 	
+	aes.copyResult((unsigned char*)in,&len);
+
 	printf("%s\n",in);
 	
 	return 0;
 }
+*/

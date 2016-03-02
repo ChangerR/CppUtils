@@ -8,7 +8,7 @@
 #define AES_KEYSIZE_256		32
 #define AES_BLOCK_SIZE		16
 #define AES_MAX_KEYLENGTH	(15 * 16)
-#define AES_MAX_KEYLENGTH_U32	(AES_MAX_KEYLENGTH / sizeof(u32))
+#define AES_MAX_KEYLENGTH_U32	(AES_MAX_KEYLENGTH / sizeof(unsigned int))
 
 /**
  * ror32 - rotate a 32-bit value right
@@ -28,17 +28,44 @@ struct crypto_aes_ctx {
 
 class Aes {
 public:
+	/**
+	 * Aes Construct function
+	 *
+	 * No return
+	 */
 	Aes();
 	virtual ~Aes();
 
+	/**
+	 * setKey - Set Aes key
+	 * @key  Your encrypt key
+	 * @len  Your encrypt key len, You can choose 16(128) 24(192) 32(256)
+	 *
+	 * Returns true on success, false on failure.
+	 */
+
 	bool setKey(const unsigned char* key,int len);
+
+	/**
+	 * decrypt - decrypt 
+	 *
+	 */
 
 	bool decrypt(const unsigned char* data,int len);
 
+	/**
+	 * decrypt
+	 */
 	bool encrypt(const unsigned char* data,int len);
 
+	/**
+	 * copyResult
+	 */
 	int copyResult(unsigned char* data,int *len);
 
+	/**
+	 * getResult
+	 */
 	unsigned char* getResult(int* len);
 
 private:
@@ -46,6 +73,8 @@ private:
 
 	unsigned char* _buffer;
 
-	int _length;
+	int _alloc,_pos;
+
+	bool _isSetKey;
 };
 #endif
