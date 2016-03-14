@@ -89,7 +89,7 @@ public:
 		m_size++;
 	}
 
-	node* begin() const{
+	node* begin() const {
 		return head->next;
 	}
 
@@ -115,10 +115,66 @@ public:
 		delete p;
 		m_size--;
 	}
+
+	T& operator [](int m) {
+		if( m < 0 || m >= m_size)
+			throw "Out of list range";
+		node* p = head->next;
+		while(m--) {
+			p = p->next;
+		}
+		return p->element;
+	}
+
+	void sort() {
+		qsort(0,m_size - 1);
+	}
+	
+#ifdef _DEBUG
+#include <stdio.h>
+
+	void print() {
+		int i = 1;
+		node* p = head->next;
+		printf("NOTE: print all list element\n");
+		while(p != tail) {
+			printf("%d\t",p->element);
+			if(i++ % 10 == 0) {
+				printf("\n");
+			}
+			p = p->next;
+		}
+		if(i % 10 != 1)
+			printf("\n");
+	}
+#endif
 private:
 	node* head;
 	node* tail;
 	int m_size;
+
+	void qsort(int l,int n) {
+		if( l >= n )
+			return;
+
+		int m = l;
+		T t = 0;
+		list<T>& array = *this;
+
+		for(int i = l + 1;i <= n;i++) {
+			if(array[i] < array[l]) {
+				t = array[++m];
+				array[m] = array[i];
+				array[i] = t;
+			}
+		}
+		t = array[m];
+		array[m] = array[l];
+		array[l] = t;
+		qsort(l,m-1);
+		qsort(m+1,n);
+
+	}
 };
 
 #endif
