@@ -127,7 +127,7 @@ public:
 	}
 
 	void sort() {
-		qsort(0,m_size - 1);
+		this->qsort(0,m_size - 1);
 	}
 	
 #ifdef _DEBUG

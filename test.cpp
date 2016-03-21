@@ -46,6 +46,6 @@ int main(int argc,char** argv) {
 	//qsort(a,0,(sizeof(a) / 4) - 1);	
 	//printResult(a,sizeof(a) / 4);
 	l.print();
-
+	
 	return 0;
 }
