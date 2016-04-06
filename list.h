@@ -50,7 +50,7 @@ public:
 		tail->prev = head;
 	}
 
-	bool empty() {
+	bool empty() const {
 		return m_size == 0;
 	}
 
