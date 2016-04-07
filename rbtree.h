@@ -212,6 +212,18 @@ private:
 		x->setRight(y);
 	}
 
+	RBNode* treeMaximum(RBNode* x) {
+		while(x->_rightc != NULL)
+			x = x->_rightc;
+		return x;
+	}
+
+	RBNode* treeMinimum(RBNode* x) {
+		while(x->_leftc != NULL)
+			x = x->_leftc;
+		return x;
+	}
+
 	int _size;
 	Node* _root;
 };
