@@ -1,6 +1,8 @@
 #ifndef __CPPUTILS_RBTREE__
 #define __CPPUTILS_RBTREE__
 #include "stack.h"
+#include "queue.h"
+#include <stdio.h>
 
 template <class KeyType,class ValueType>
 class RBTree {
@@ -9,7 +11,7 @@ class RBTree {
 	class Node {
 	public:
 		Node(const K& k,const V& v):_key(k),_value(v),_parent(NULL),_leftc(NULL),_rightc(NULL),_isRed(true){}
-		Node():_parent(NULL),_leftc(NULL),_rightc(NULL),_isRed(true){}
+		Node():_parent(NULL),_leftc(NULL),_rightc(NULL),_isRed(true),_key(),_value(){}
 
 		void setLeft(Node* l) {
 			_leftc = l;
@@ -141,10 +143,45 @@ public:
 			if(n->_leftc)s.push(n->_leftc);
 			delete n;
 		}
-		size = 0;
+		_size = 0;
 		_root = NULL;
 	}
+	
+	void erase(const KeyType& key) {
+		RBNode* n = search(key);
 
+		if(n != NULL)
+			erase(n);
+	}
+
+	void debug() {
+		queue<RBNode*> s1,s2;
+		queue<RBNode*> *ps_current,*ps_backup;
+
+		ps_current = &s1;
+		ps_backup = &s2;
+		
+		ps_current->enqueue(_root);
+
+		while(!ps_current->empty()) {
+			RBNode* p = ps_current->dequeue();
+			if(p == NULL) {
+				printf("NIL ");
+			}else {
+				printf("%d(%s) ",p->getKey(),p->_isRed ? "RED":"BLACK");
+				ps_backup->enqueue(p->_leftc);
+				ps_backup->enqueue(p->_rightc);
+			}
+			if(ps_current->empty() == true&&ps_backup->empty() == false) {
+				queue<RBNode*> *p = ps_current;
+				ps_current = ps_backup;
+				ps_backup = p;
+				printf("\n");
+			}
+		}
+		printf("\n");
+	}
+	
 private:
 
 	bool insert_without_balance(RBNode* n) {
@@ -176,6 +213,143 @@ private:
 		}
 		++_size;
 		return true;
+	}
+
+	void treeTransplant(RBNode* u,RBNode* v) {
+		if(u == _root) {
+			_root = v;
+		}else if(u->isLeft()) {
+			u->_parent->_leftc = v;
+		}else {
+			u->_parent->_rightc = v;
+		}
+		v->_parent = u->_parent;
+	}
+
+	int erase(RBNode* z) {
+		RBNode* x,*y;
+		bool y_original_color = z->_isRed;
+		y = z;
+		
+		if(z->_leftc == NULL) {
+			x = z->_rightc;
+			if(x == NULL) {
+				_erase_p = z->_parent;
+				if(z->isLeft())
+					_erase_p->_leftc = NULL;
+				else
+					_erase_p->_rightc = NULL;
+			}else
+				treeTransplant(z,x);
+		} else if(z->_rightc == NULL) {
+			x = z->_leftc;
+			treeTransplant(z,x);
+		}else {
+			y = treeMinimum(z->_rightc);
+			y_original_color = y->_isRed;
+			x = y->_rightc;
+			if(y->_parent != z) {
+				if(x == NULL) {
+					_erase_p = y->_parent;
+					if(y->isLeft())
+						_erase_p->_leftc = NULL;
+					else
+						_erase_p->_rightc = NULL;
+				}else
+					treeTransplant(y,x);
+				y->_rightc = z->_rightc;
+				y->_rightc->_parent = y;
+			}else if(x == NULL) {
+				_erase_p = y;
+			}
+			treeTransplant(z,y);
+			y->_leftc = z->_leftc;
+			y->_leftc->_parent = y;
+			y->_isRed = z->_isRed;
+		}
+		
+		delete z;
+		--_size;
+
+		if(!y_original_color){
+			rbtreeDeleteFixup(x);		
+		}
+
+		return _size;
+	}
+
+	void rbtreeDeleteFixup(RBNode* x) {
+		RBNode* w,*p;
+		while(x != _root && (x == NULL || x->_isRed == false)) {
+			if((x == NULL && _erase_p->_leftc == NULL)||x->isLeft()) {
+				p = (x == NULL) ? _erase_p: x->_parent;
+				w = p->_rightc;
+				//case 1
+				if(w->_isRed) {
+					p->setRed();
+					w->setBlack();
+					rotateLeft(p);
+				}else if(w->getLeftColor() == false && w->getRightColor() == false) {
+					//case 2
+					w->setRed();
+					x = p;
+				}else{
+					//case 3
+					if(w->getRightColor() == false) {
+						w->_leftc->setBlack();
+						w->setRed();
+						rotateRight(w);
+					}
+					//case 4
+					w->_isRed = p->_isRed;
+					p->setBlack();
+					w->_rightc->setBlack();
+					rotateLeft(p);
+					x = _root;
+				}
+
+			}else{
+				p = (x == NULL) ? _erase_p:x->_parent;
+				w = p->_leftc;
+				//case 1
+				if(w->_isRed) {
+					p->setRed();
+					w->setBlack();
+					rotateRight(p);
+				}else if(w->getLeftColor() == false && w->getRightColor() == false) {
+					//case 2
+					w->setRed();
+					x = p;
+				}else {
+					//case 3
+					if(w->getLeftColor() == false) {
+						w->_rightc->setBlack();
+						w->setRed();
+						rotateLeft(w);
+					}
+					//case 4
+					w->_isRed = p->_isRed;
+					p->setBlack();
+					w->_leftc->setBlack();
+					rotateRight(p);
+					x = _root;
+				}
+			}
+		}
+		x->setBlack();
+	}
+
+	RBNode* search(const KeyType& k) {
+		RBNode* n = _root;
+		while(n) {
+			if(k == n->getKey())
+				break;
+			else if(k < n->getKey())
+				n = n->_leftc;
+			else
+				n = n->_rightc;
+		}
+		return n;
 	}
 
 	void rotateLeft(RBNode* x) {
@@ -225,7 +399,8 @@ private:
 	}
 
 	int _size;
-	Node* _root;
+	RBNode* _root;
+	RBNode* _erase_p;
 };
 
 #endif

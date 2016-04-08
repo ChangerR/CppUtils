@@ -1,5 +1,6 @@
 #ifndef _SL_LIST__H
 #define _SL_LIST__H
+#include <stdio.h>
 
 template <class T>
 class list

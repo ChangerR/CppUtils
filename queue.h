@@ -1,12 +1,12 @@
-#ifndef __CPPUTILS_STACK_
-#define __CPPUTILS_STACK_
+#ifndef __CPPUTILS_QUEUE_
+#define __CPPUTILS_QUEUE_
 #include "list.h"
 
 template <typename T>
-class stack {
+class queue {
 public:
-	stack():_list(){};
-	virtual ~stack(){clear();};
+	queue():_list(){};
+	virtual ~queue(){clear();};
 
 	void clear() {
 		_list.clear();
@@ -20,11 +20,11 @@ public:
 		return _list.getSize();
 	}
 
-	void push(const T& v) {
-		_list.push_front(v);
+	void enqueue(const T& v) {
+		_list.push_back(v);
 	}
 
-	T pop() {
+	T dequeue() {
 		T t;
 		if(_list.empty())
 			return T(0);
