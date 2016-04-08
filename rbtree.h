@@ -124,6 +124,13 @@ public:
 		return true;
 	}
 	
+	ValueType& find(const KeyType& key) {
+		RBNode* n = search(key);
+		if(n == NULL) 
+			throw 1;
+		return n->getValue();
+	}
+	
 	bool empty() const {
 		return _size == 0;
 	}
