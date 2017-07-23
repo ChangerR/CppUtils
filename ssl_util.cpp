@@ -46,7 +46,7 @@ bool SSLFactory::load()
 
 bool SSLFactory::load(const std::string& cert,const std::string& priv)
 {
-	ctx_ = SSL_CTX_new(SSLv23_client_method());
+	ctx_ = SSL_CTX_new(SSLv23_method());
 	if (!ctx_)
 	{
 		ERR_print_errors_cb(ssl_err_message_cb,&err_message_);

@@ -58,14 +58,14 @@ int main(int argc,char** argv)
 	}
 	
 	SSLFactory factory;
-	if (!factory.load("CHANGER-PC.cert","CHANGER-PC.key"))
+	if (!factory.load("server.crt","server.key"))
 	{
 		printf("ssl client init failed:%s\n",factory.get_error().c_str());
 		close(client_fd);
 		close(listen_fd);
 		return 1;
 	}
-	SSLBase* ssl_server = factory.create_client();
+	SSLBase* ssl_server = factory.create_server();
 	
 	if (!ssl_server)
 	{
@@ -77,7 +77,7 @@ int main(int argc,char** argv)
 	
 	auto send = std::bind([&client_fd,&dump](const unsigned char* buffer,int length)
 	{
-		dump.hexdump(buffer,length,std::bind([](const char* pbuf) { printf("%s\n",pbuf); },std::placeholders::_1));
+		dump.hexdump(buffer,length,std::bind([](const char* pbuf) { printf("recv data:\n%s\n",pbuf); },std::placeholders::_1));
 		write(client_fd,buffer,length);
 	},std::placeholders::_1,std::placeholders::_2);
 	
@@ -88,7 +88,7 @@ int main(int argc,char** argv)
 		len = read(client_fd,buf,sizeof(buf));
 		if (len > 0)
 		{
-			dump.hexdump(buf,len,std::bind([](const char* pbuf) { printf("%s\n",pbuf); },std::placeholders::_1));
+			dump.hexdump((unsigned char*)buf,len,std::bind([](const char* pbuf) { printf("%s\n",pbuf); },std::placeholders::_1));
 		}
 		int ret = ssl_server->handshake((unsigned char*)buf,len,send);
 		if (ret < 0)
@@ -105,6 +105,7 @@ int main(int argc,char** argv)
 
 	printf("%s\n",ssl_server->get_peer_cert().c_str());
 	
+	ssl_server->write((unsigned char*)"HELLO MY FRIEND",strlen("HELLO MY FRIEND"),send);
 	delete ssl_server;
 	close(client_fd);
 	close(listen_fd);
