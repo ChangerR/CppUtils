@@ -294,7 +294,49 @@ static int do_kill(client_ctx *cx)
     return new_state;
 }
 
-static int do_almost_dead(client_ctx *cx) {
-  ASSERT(cx->state >= s_almost_dead_0);
-  return cx->state + 1;  /* Another finalizer completed. */
+static int do_almost_dead(client_ctx *cx)
+{
+    ASSERT(cx->state >= s_almost_dead_0);
+    return cx->state + 1; /* Another finalizer completed. */
+}
+
+static int conn_cycle(const char *who, conn *a, conn *b)
+{
+    if (a->result < 0)
+    {
+        if (a->result != UV_EOF)
+        {
+            pr_err("%s error: %s", who, uv_strerror(a->result));
+        }
+        return -1;
+    }
+
+    if (b->result < 0)
+    {
+        return -1;
+    }
+
+    if (a->wrstate == c_done)
+    {
+        a->wrstate = c_stop;
+    }
+
+    /* The logic is as follows: read when we don't write and write when we don't
+   * read.  That gives us back-pressure handling for free because if the peer
+   * sends data faster than we consume it, TCP congestion control kicks in.
+   */
+    if (a->wrstate == c_stop)
+    {
+        if (b->rdstate == c_stop)
+        {
+            conn_read(b);
+        }
+        else if (b->rdstate == c_done)
+        {
+            conn_write(a, b->t.buf, b->result);
+            b->rdstate = c_stop; /* Triggers the call to conn_read() above. */
+        }
+    }
+
+    return 0;
 }
