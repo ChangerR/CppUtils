@@ -84,7 +84,6 @@ void client_finish_init(server_ctx *sx, client_ctx *cx)
 
     cx->sx = sx;
     cx->state = s_req_start;
-    s5_init(&cx->parser);
 
     incoming = &cx->incoming;
     incoming->client = cx;
@@ -151,7 +150,7 @@ static void do_next(client_ctx *cx)
 }
 
 /* Assumes that cx->outgoing.t.sa contains a valid AF_INET/AF_INET6 address. */
-static int do_req_start(client_ctx *cx)
+static int do_conn_start(client_ctx *cx)
 {
     conn *incoming;
     conn *outgoing;
@@ -163,6 +162,8 @@ static int do_req_start(client_ctx *cx)
     ASSERT(incoming->wrstate == c_stop);
     ASSERT(outgoing->rdstate == c_stop);
     ASSERT(outgoing->wrstate == c_stop);
+
+    outgoing.t.addr = cx->sx->c_addr.addr;
 
     err = conn_connect(outgoing);
     if (err != 0)
@@ -232,4 +233,68 @@ static void conn_connect_done(uv_connect_t *req, int status)
     c = CONTAINER_OF(req, conn, t.connect_req);
     c->result = status;
     do_next(c->client);
+}
+
+static int do_proxy_start(client_ctx *cx)
+{
+    conn *incoming;
+    conn *outgoing;
+
+    incoming = &cx->incoming;
+    outgoing = &cx->outgoing;
+    ASSERT(incoming->rdstate == c_stop);
+    ASSERT(incoming->wrstate == c_stop);
+    ASSERT(outgoing->rdstate == c_stop);
+    ASSERT(outgoing->wrstate == c_stop);
+    incoming->wrstate = c_stop;
+
+    if (incoming->result < 0)
+    {
+        printf("write error: %s", uv_strerror(incoming->result));
+        return do_kill(cx);
+    }
+
+    conn_read(incoming);
+    conn_read(outgoing);
+    return s_proxy;
+}
+
+/* Proxy incoming data back and forth. */
+static int do_proxy(client_ctx *cx)
+{
+    if (conn_cycle("client", &cx->incoming, &cx->outgoing))
+    {
+        return do_kill(cx);
+    }
+
+    if (conn_cycle("upstream", &cx->outgoing, &cx->incoming))
+    {
+        return do_kill(cx);
+    }
+
+    return s_proxy;
+}
+
+static int do_kill(client_ctx *cx)
+{
+    int new_state;
+
+    if (cx->state >= s_almost_dead_0)
+    {
+        return cx->state;
+    }
+
+    /* Try to cancel the request. The callback still runs but if the
+   * cancellation succeeded, it gets called with status=UV_ECANCELED.
+   */
+    new_state = s_almost_dead_1;
+
+    conn_close(&cx->incoming);
+    conn_close(&cx->outgoing);
+    return new_state;
+}
+
+static int do_almost_dead(client_ctx *cx) {
+  ASSERT(cx->state >= s_almost_dead_0);
+  return cx->state + 1;  /* Another finalizer completed. */
 }

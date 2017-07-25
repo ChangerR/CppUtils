@@ -14,6 +14,8 @@ typedef struct
 {
   const char *bind_host;
   unsigned short bind_port;
+  const char *conn_host;
+  unsigned short conn_port;
   unsigned int idle_timeout;
 } server_config;
 
@@ -22,6 +24,11 @@ typedef struct
   unsigned int idle_timeout; /* Connection idle timeout in ms. */
   uv_tcp_t tcp_handle;
   uv_loop_t *loop;
+  union {
+    struct sockaddr_in6 addr6;
+    struct sockaddr_in addr4;
+    struct sockaddr addr;
+  } c_addr;
 } server_ctx;
 
 typedef struct

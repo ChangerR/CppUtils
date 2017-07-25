@@ -5,3 +5,4 @@ server
 *.key
 .vscode
 3rd
+tds/test/getaddr

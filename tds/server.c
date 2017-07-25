@@ -9,12 +9,19 @@
 
 typedef struct
 {
+    uv_getaddrinfo_t getclientinfo_req;
     uv_getaddrinfo_t getaddrinfo_req;
     server_config config;
     server_ctx *servers;
     uv_loop_t *loop;
+    union {
+        struct sockaddr_in6 addr6;
+        struct sockaddr_in addr4;
+        struct sockaddr addr;
+    } c_addr;
 } server_state;
 
+static void do_client_lookup(uv_getaddrinfo_t *req, int status, struct addrinfo *ai);
 static void do_bind(uv_getaddrinfo_t *req, int status, struct addrinfo *ai);
 static void on_connection(uv_stream_t *server, int status);
 
@@ -52,9 +59,9 @@ int server_run(const server_config *cf, uv_loop_t *loop)
     hints.ai_protocol = IPPROTO_TCP;
 
     err = uv_getaddrinfo(loop,
-                         &state.getaddrinfo_req,
-                         do_bind,
-                         cf->bind_host,
+                         &state.getclientinfo_req,
+                         do_client_lookup,
+                         cf->conn_host,
                          NULL,
                          &hints);
     if (err != 0)
@@ -73,6 +80,67 @@ int server_run(const server_config *cf, uv_loop_t *loop)
     uv_loop_delete(loop);
     free(state.servers);
     return 0;
+}
+
+static void do_client_lookup(uv_getaddrinfo_t *req, int status, struct addrinfo *addrs)
+{
+    server_state *state;
+    server_config *cf;
+    uv_loop_t *loop;
+    struct addrinfo hints;
+    int err;
+    
+    state = CONTAINER_OF(req, server_state, getclientinfo_req);
+    loop = state->loop;
+    cf = &state->config;
+
+    if (status < 0)
+    {
+        printf("unknown client host name:%s\n", cf->conn_host);
+        uv_freeaddrinfo(addrs);
+        uv_stop(loop);
+        return;
+    }
+
+    if (addrs->ai_family == AF_INET)
+    {
+        state->c_addr.addr4 = *(const struct sockaddr_in *)addrs->ai_addr;
+        state->c_addr.addr4.sin_port = htons(cf->conn_port);
+    }
+    else if (addrs->ai_family == AF_INET6)
+    {
+        state->c_addr.addr6 = *(const struct sockaddr_in6 *)addrs->ai_addr;
+        state->c_addr.addr6.sin6_port = htons(cf->conn_port);
+    }
+    else
+    {
+        printf("cannot find this family\n");
+        uv_freeaddrinfo(addrs);
+        uv_stop(loop);
+        return;
+    }
+
+    /* Resolve the address of the interface that we should bind to.
+   * The getaddrinfo callback starts the server and everything else.
+   */
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    err = uv_getaddrinfo(loop,
+                         &state->getaddrinfo_req,
+                         do_bind,
+                         cf->bind_host,
+                         NULL,
+                         &hints);
+    if (err != 0)
+    {
+        printf("getaddrinfo: %s", uv_strerror(err));
+        return;
+    }
+
+    uv_freeaddrinfo(addrs);
 }
 
 /* Bind a server to each address that getaddrinfo() reported. */
@@ -162,6 +230,7 @@ static void do_bind(uv_getaddrinfo_t *req, int status, struct addrinfo *addrs)
         }
 
         sx = state->servers + n;
+        sx->c_addr.addr = state->c_addr.addr;
         sx->loop = loop;
         sx->idle_timeout = state->config.idle_timeout;
         CHECK(0 == uv_tcp_init(loop, &sx->tcp_handle));
@@ -170,6 +239,7 @@ static void do_bind(uv_getaddrinfo_t *req, int status, struct addrinfo *addrs)
         err = uv_tcp_bind(&sx->tcp_handle, &s.addr, 0);
         if (err == 0)
         {
+
             what = "uv_listen";
             err = uv_listen((uv_stream_t *)&sx->tcp_handle, 128, on_connection);
         }
