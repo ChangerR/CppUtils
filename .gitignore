@@ -6,3 +6,5 @@ server
 .vscode
 3rd
 tds/test/getaddr
+*.d
+proxy

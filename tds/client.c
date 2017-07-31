@@ -45,10 +45,7 @@ enum conn_state
 /* Session states. */
 enum sess_state
 {
-    s_req_start,     /* Start waiting for request data. */
-    s_req_parse,     /* Wait for request data. */
-    s_req_lookup,    /* Wait for upstream hostname DNS lookup to complete. */
-    s_req_connect,   /* Wait for uv_tcp_connect() to complete. */
+    s_connect,       /* connect to proxy server */
     s_proxy_start,   /* Connected. Start piping data. */
     s_proxy,         /* Connected. Pipe data back and forth. */
     s_kill,          /* Tear down session. */
@@ -60,6 +57,7 @@ enum sess_state
     s_dead           /* Dead. Safe to free now. */
 };
 
+static int do_conn_start(client_ctx *cx);
 static int do_proxy_start(client_ctx *cx);
 static int do_proxy(client_ctx *cx);
 static int do_kill(client_ctx *cx);
@@ -75,6 +73,11 @@ static void conn_write(conn *c, const void *data, unsigned int len);
 static void conn_write_done(uv_write_t *req, int status);
 static void conn_close(conn *c);
 static void conn_close_done(uv_handle_t *handle);
+static int conn_cycle(const char *who, conn *a, conn *b);
+static void conn_timer_reset(conn *c);
+static void conn_timer_expire(uv_timer_t *handle);
+static int conn_connect(conn *c);
+static void conn_connect_done(uv_connect_t *req, int status);
 
 /* |incoming| has been initialized by server.c when this is called. */
 void client_finish_init(server_ctx *sx, client_ctx *cx)
@@ -83,7 +86,7 @@ void client_finish_init(server_ctx *sx, client_ctx *cx)
     conn *outgoing;
 
     cx->sx = sx;
-    cx->state = s_req_start;
+    cx->state = s_connect;
 
     incoming = &cx->incoming;
     incoming->client = cx;
@@ -118,6 +121,9 @@ static void do_next(client_ctx *cx)
     ASSERT(cx->state != s_dead);
     switch (cx->state)
     {
+    case s_connect:
+        new_state = do_conn_start(cx);
+        break;
     case s_proxy_start:
         new_state = do_proxy_start(cx);
         break;
@@ -163,7 +169,7 @@ static int do_conn_start(client_ctx *cx)
     ASSERT(outgoing->rdstate == c_stop);
     ASSERT(outgoing->wrstate == c_stop);
 
-    outgoing.t.addr = cx->sx->c_addr.addr;
+    outgoing->t.addr = cx->sx->c_addr.addr;
 
     err = conn_connect(outgoing);
     if (err != 0)
@@ -306,7 +312,7 @@ static int conn_cycle(const char *who, conn *a, conn *b)
     {
         if (a->result != UV_EOF)
         {
-            pr_err("%s error: %s", who, uv_strerror(a->result));
+            printf("%s error: %s", who, uv_strerror(a->result));
         }
         return -1;
     }
@@ -339,4 +345,78 @@ static int conn_cycle(const char *who, conn *a, conn *b)
     }
 
     return 0;
+}
+
+static void conn_write(conn *c, const void *data, unsigned int len)
+{
+    uv_buf_t buf;
+
+    ASSERT(c->wrstate == c_stop || c->wrstate == c_done);
+    c->wrstate = c_busy;
+
+    /* It's okay to cast away constness here, uv_write() won't modify the
+   * memory.
+   */
+    buf.base = (char *)data;
+    buf.len = len;
+
+    CHECK(0 == uv_write(&c->write_req,
+                        &c->handle.stream,
+                        &buf,
+                        1,
+                        conn_write_done));
+    conn_timer_reset(c);
+}
+
+static void conn_write_done(uv_write_t *req, int status)
+{
+    conn *c;
+
+    if (status == UV_ECANCELED)
+    {
+        return; /* Handle has been closed. */
+    }
+
+    c = CONTAINER_OF(req, conn, write_req);
+    ASSERT(c->wrstate == c_busy);
+    c->wrstate = c_done;
+    c->result = status;
+    do_next(c->client);
+}
+
+static void conn_close(conn *c)
+{
+    ASSERT(c->rdstate != c_dead);
+    ASSERT(c->wrstate != c_dead);
+    c->rdstate = c_dead;
+    c->wrstate = c_dead;
+    c->timer_handle.data = c;
+    c->handle.handle.data = c;
+    uv_close(&c->handle.handle, conn_close_done);
+    uv_close((uv_handle_t *)&c->timer_handle, conn_close_done);
+}
+
+static void conn_close_done(uv_handle_t *handle)
+{
+    conn *c;
+
+    c = handle->data;
+    do_next(c->client);
+}
+
+static void conn_timer_reset(conn *c)
+{
+    CHECK(0 == uv_timer_start(&c->timer_handle,
+                              conn_timer_expire,
+                              c->idle_timeout,
+                              0));
+}
+
+static void conn_timer_expire(uv_timer_t *handle)
+{
+    conn *c;
+
+    c = CONTAINER_OF(handle, conn, timer_handle);
+    c->result = UV_ETIMEDOUT;
+    do_next(c->client);
 }
