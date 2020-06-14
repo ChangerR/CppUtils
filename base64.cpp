@@ -13,7 +13,7 @@ unsigned char dbase64[] = {
 
 #define REALTOBASE64LEN(real) (((real + 2 ) / 3 )* 4)
 
-char* encode(char* buffer,const char* data,int len) {
+char* b64encode(char* buffer,const char* data,int len) {
 	int ed = 0;
 	char* p = buffer;
 	
@@ -46,7 +46,7 @@ char* encode(char* buffer,const char* data,int len) {
 	return buffer;	
 }
 
-char* decode(char* buffer,const char* data,int len) {
+char* b64decode(char* buffer,const char* data,int len) {
 	char* p = buffer;
 	int dd = 0;
 

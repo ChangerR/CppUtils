@@ -1,5 +1,5 @@
-#ifndef _BOAT_BITMANAGER_
-#define _BOAT_BITMANAGER_
+#ifndef _CPPUTILS_BITMANAGER_
+#define _CPPUTILS_BITMANAGER_
 #include <memory.h>
 #include <stdio.h>
 class BitManager {

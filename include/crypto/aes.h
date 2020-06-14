@@ -10,6 +10,11 @@
 #define AES_MAX_KEYLENGTH	(15 * 16)
 #define AES_MAX_KEYLENGTH_U32	(AES_MAX_KEYLENGTH / sizeof(unsigned int))
 
+namespace CppUtils
+{
+namespace Crypto
+{
+	
 /**
  * ror32 - rotate a 32-bit value right
  * @word: value to rotate
@@ -77,4 +82,7 @@ private:
 
 	bool _isSetKey;
 };
+
+}
+}
 #endif
